@@ -6,14 +6,21 @@ pub fn main() !void {
     var running: bool = true;
     const allocator = std.heap.page_allocator;
 
-    var ptr = try zsdlgpu.Context.initPtr(allocator, "vulkan", "hahahah", 1024, 1024, .{.resizable = true}, .{});
+    var ptr = try zsdlgpu.Context.initPtr(allocator, "vulkan", "hahahah", 1024, 1024, .{ .resizable = true }, .{});
     defer ptr.deinitPtr();
 
-    const vshader = try ptr.loadShader(.Vert, "/home/aif/code/zsdlgpu/shaders/triangle/vert.spv", 0, 0, 0, 0);
-    const fshader = try ptr.loadShader(.Frag, "/home/aif/code/zsdlgpu/shaders/triangle/frag.spv", 0, 0, 0, 0);
-    
-    const pipeline  = try ptr.createGPipeline(vshader, fshader);
-    defer ptr.destroyGpipeline(pipeline);
+    const cwd = std.fs.cwd();
+    const path = try cwd.realpathAlloc(allocator, ".");
+    defer allocator.free(path);
+    const vpath = try std.fmt.allocPrintSentinel(allocator, "{s}/shaders/triangle/vert.spv", .{path}, 0);
+    defer allocator.free(vpath);
+    const fpath = try std.fmt.allocPrintSentinel(allocator, "{s}/shaders/triangle/frag.spv", .{path}, 0);
+    defer allocator.free(fpath);
+
+    const vshader = try ptr.loadShader(.Vert, vpath, 0, 0, 0, 0);
+    const fshader = try ptr.loadShader(.Frag, fpath, 0, 0, 0, 0);
+
+    const pipeline = try ptr.createGPipeline("triangle", vshader, fshader);
 
     while (running) {
         var event: c.SDL_Event = undefined;
@@ -27,14 +34,13 @@ pub fn main() !void {
             }
         }
 
-        const cmd = try ptr.acquireCmd();
-        const swapchain_texture = try ptr.acquireSwapchain(cmd);
-        const render_pass = try ptr.beginRenderPass(cmd, swapchain_texture);
-        ptr.bindGPipeline(render_pass, pipeline);
-        ptr.setViewport(render_pass);
-        ptr.drawPrimitives(render_pass);
-        ptr.endRenderPass(render_pass);
-        ptr.submitCmd(cmd);
+        try ptr.acquireCmd();
+        try ptr.acquireSwapchain();
+        try ptr.beginRenderPass();
+        ptr.bindGPipelineByPipeline(pipeline);
+        try ptr.setViewport();
+        ptr.drawPrimitives();
+        ptr.endRenderPass();
+        ptr.submitCmd();
     }
 }
-
